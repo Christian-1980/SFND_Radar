@@ -62,29 +62,29 @@ Mix = zeros(1,length(t)); %beat signal
 
 %Similar vectors for range_covered and time delay.
 r_t=zeros(1,length(t));
-td=zeros(1,length(t));
+t_delta=zeros(1,length(t));
 
 
 %% Signal generation and Moving Target simulation
 % Running the radar scenario over the time. 
 
 for i=1:length(t)         
-    
-    
-    % *%TODO* :
-    %For each time stamp update the Range of the Target for constant velocity. 
-    
-    % *%TODO* :
+
+    %For each time stamp update the Range of the Target for constant velocity.
+    range = range_0 + v_0*t(i)
+
     %For each time sample we need update the transmitted and
     %received signal. 
-    Tx(i) = 
-    Rx (i)  =
-    
-    % *%TODO* :
+    t_delta= 2*range / c;
+    t_new  = t(i)-t_delta;
+
+    Tx(i) = cos( 2*pi*( radar_frequency_operational*t(i) + (0.5*slope*t(i)^2) ) );
+    Rx(i) = cos( 2*pi*( radar_frequency_operational*t_new + (0.5*slope*t_new^2) ) );
+
     %Now by mixing the Transmit and Receive generate the beat signal
     %This is done by element wise matrix multiplication of Transmit and
     %Receiver Signal
-    Mix(i) = 
+    Mix(i) = Tx(i).*Rx(i);
     
 end
 
