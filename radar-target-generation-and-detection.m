@@ -10,7 +10,7 @@ clc;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Speed of light
-c = 3*e^8; % [m/s]
+c = 3*10^8; % [m/s]
 
 %% User Defined Range and Velocity of target
 % define the target's initial position and velocity. Note : Velocity
@@ -23,6 +23,8 @@ radar_res_max = 1; % [m]
 target_v_max = 70; % [m/s]
 target_v_resolution = 3; % [m/s]
 
+target_init_range = 110;
+target_init_v = -1;
 
 %% FMCW Waveform Generation
 
@@ -52,7 +54,7 @@ Nr=1024;                  %for length of time OR # of range cells
 
 % Timestamp for running the displacement scenario for every sample on each
 % chirp
-t=linspace(0,Nd*Tchirp,Nr*Nd); %total time for samples
+t=linspace(0,Nd*Ts,Nr*Nd); %total time for samples
 
 
 %Creating the vectors for Tx, Rx and Mix based on the total samples input.
@@ -71,15 +73,15 @@ t_delta=zeros(1,length(t));
 for i=1:length(t)         
 
     %For each time stamp update the Range of the Target for constant velocity.
-    range = range_0 + v_0*t(i)
+    range = target_init_range + target_init_v*t(i)
 
     %For each time sample we need update the transmitted and
     %received signal. 
     t_delta= 2*range / c;
     t_new  = t(i)-t_delta;
 
-    Tx(i) = cos( 2*pi*( radar_frequency_operational*t(i) + (0.5*slope*t(i)^2) ) );
-    Rx(i) = cos( 2*pi*( radar_frequency_operational*t_new + (0.5*slope*t_new^2) ) );
+    Tx(i) = cos( 2*pi*( radar_frequency_operational*t(i) + (0.5*chirp_slope*t(i)^2) ) );
+    Rx(i) = cos( 2*pi*( radar_frequency_operational*t_new + (0.5*chirp_slope*t_new^2) ) );
 
     %Now by mixing the Transmit and Receive generate the beat signal
     %This is done by element wise matrix multiplication of Transmit and
