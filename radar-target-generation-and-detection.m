@@ -148,22 +148,14 @@ figure,surf(doppler_axis,range_axis,RDM);
 training_cells_chirps = 8;
 training_cells_samples = 6;
 
-% *%TODO* :
 %Select the number of Guard Cells in both dimensions around the Cell under 
 %test (CUT) for accurate estimation
 guard_cells_chrips = 4;
 guard_cells_samples = 4;
 
-% *%TODO* :
 % offset the threshold by SNR value in dB
 offset_threshold = 1.4;
 
-% *%TODO* :
-%Create a vector to store noise_level for each iteration on training cells
-noise_level = zeros(1,1);
-
-
-% *%TODO* :
 %design a loop such that it slides the CUT across range doppler map by
 %giving margins at the edges for Training and Guard Cells.
 %For every iteration sum the signal level within all the training
@@ -175,9 +167,46 @@ noise_level = zeros(1,1);
 %it a value of 1, else equate it to 0.
 
 
-   % Use RDM[x,y] as the matrix from the output of 2D FFT for implementing
-   % CFAR
+% Use RDM[x,y] as the matrix from the output of 2D FFT for implementing
+% CFAR
+threshold_cfar = [];
+signal_cfar = [];
 
+% helpers
+chirps_width = training_cells_chirps+guard_cells_chrips;
+samples_width = training_cells_samples+guard_cells_samples;
+
+
+% Looping over the matrix results
+for i = chirps_width+1 : (Nr/2)-(chirps_width)
+    for j = samples_width+1 : Nd-(samples_width)
+        
+        % init noise level
+        noise_level = zeros(1,1);
+        
+        % Calculate noise SUM in the area around CUT
+        for p = i-(chirps_width) : i+(chirps_width)
+            for q = j-(samples_width) : j+(samples_width)
+                if (abs(i-p) > guard_cells_chrips || abs(j-q) > guard_cells_samples)
+                    noise_level = noise_level + db2pow(RDM(p,q));
+                end
+            end
+        end
+        
+        % Calculate threshould from noise average then add the offset
+        threshold_avg = pow2db(noise_level/(2*(samples_width+1)*2*(chirps_width+1)-(training_cells_chirps*guard_cells_samples)-1));
+        threshold_avg = threshold_avg + offset;
+        CUT = RDM(i,j);
+        
+        if (CUT > threshold_avg)
+            RDM(i,j) = 1;
+            fprintf ("p= %d, q= %d, CUT= %f, threshold_avg= %f\n", p, q, CUT, threshold_avg);
+        else
+            RDM(i,j) = 0;
+        end
+        
+    end
+end
 
 
 
@@ -185,7 +214,7 @@ noise_level = zeros(1,1);
 % *%TODO* :
 % The process above will generate a thresholded block, which is smaller 
 %than the Range Doppler Map as the CUT cannot be located at the edges of
-%matrix. Hence,few cells will not be thresholded. To keep the map size same
+%matraining_cells_chirpsix. Hence,few cells will not be thresholded. To keep the map size same
 % set those values to 0. 
  
 
