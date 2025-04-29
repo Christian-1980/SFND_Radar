@@ -104,7 +104,7 @@ signal_fft = fft(new_Mix);
 signal = signal_fft(1:L/2+1);   % Taking only half of output
 
 % Also plotting the range
-figure ('Name','Range from First FFT')
+figure ('Name','Range based on First FFT')
 f = L*(0:L/2)/L;
 plot(f,signal) 
 axis ([0 200 0 1]);
@@ -144,15 +144,19 @@ figure,surf(doppler_axis,range_axis,RDM);
 
 %Slide Window through the complete Range Doppler Map
 
-% *%TODO* :
 %Select the number of Training Cells in both the dimensions.
+training_cells_chirps = 8;
+training_cells_samples = 6;
 
 % *%TODO* :
 %Select the number of Guard Cells in both dimensions around the Cell under 
 %test (CUT) for accurate estimation
+guard_cells_chrips = 4;
+guard_cells_samples = 4;
 
 % *%TODO* :
 % offset the threshold by SNR value in dB
+offset_threshold = 1.4;
 
 % *%TODO* :
 %Create a vector to store noise_level for each iteration on training cells
