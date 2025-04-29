@@ -209,19 +209,12 @@ for i = chirps_width+1 : (Nr/2)-(chirps_width)
 end
 
 
-
-
-% *%TODO* :
 % The process above will generate a thresholded block, which is smaller 
 %than the Range Doppler Map as the CUT cannot be located at the edges of
 %matraining_cells_chirpsix. Hence,few cells will not be thresholded. To keep the map size same
-% set those values to 0. 
- 
-
-
-
-
-
+% set those values to 0.  
+RDM(union(1:(chirps_width),end-(chirps_width-1):end),:) = 0;  % Rows
+RDM(:,union(1:(samples_width),end-(samples_width-1):end)) = 0;  % Columns
 
 
 
