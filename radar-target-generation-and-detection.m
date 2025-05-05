@@ -16,36 +16,51 @@ c = 3*10^8; % [m/s]
 % define the target's initial position and velocity. Note : Velocity
 % remains contant
 
-radar_frequency_operational = 77*10^9; % [GHz]
-radar_range_max = 200; % [m]
-radar_res_max = 1; % [m]
+% A struct to have a container to hold all relevant data
+radar = struct();
+radar.frequency_operational = 77*10^9; % [GHz]
+radar.range_max = 200; % [m]
+radar.res_max = 1; % [m]
 
-target_v_max = 70; % [m/s]
-target_v_resolution = 3; % [m/s]
-
-target_init_range = 110;
-target_init_v = -1;
+% A struct to have a container to hold all relevant data
+target = struct();
+target.v_max = 70; % [m/s]
+target.v_resolution = 3; % [m/s]
+target.init_range = 110;
+target.init_v = -20;
 
 %% FMCW Waveform Generation
 
-%Design the FMCW waveform by giving the specs of each of its parameters.
+%Design the FMCW waveform by giving the specs of each of iradar.Ts parameters.
 % Calculate the Bandwidth (B), Chirp Time (Tchirp) and Slope (slope) of the FMCW
-% chirp using the requirements above.
+% chirp using the requiremenradar.Ts above.
 
 % radar bandwidth
-radar_bsweep = c / (2 * radar_res_max);
+radar.bsweep = c / (2 * radar.res_max);
 
 % fitting factor
-fitting_factor = 5.5; % practical factor for fitting
+radar.fitting_factor = 5.5; % practical factor for fitting
 
-% Ts
-Ts = fitting_factor * 2 * radar_range_max / c; 
+% radar.Ts
+radar.Ts = radar.fitting_factor * 2 * radar.range_max / c; 
 
 % Slope
-chirp_slope = radar_bsweep / Ts;
+radar.chirp_slope = radar.bsweep / radar.Ts;
+
+
+%% Print ou the radar props
+fprintf('-----------------\n');
+fprintf('Radar Properties:\n');
+fprintf('  Operational Frequency: %.2e Hz\n', radar.frequency_operational);
+fprintf('  Maximum Range: %.2f m\n', radar.range_max);
+fprintf('  Range Resolution: %.2f m\n', radar.res_max);
+fprintf('  Bandwidth: %.2f m\n', radar.bsweep);
+fprintf('  Fitting Factor: %.2f m\n', radar.fitting_factor);
+fprintf('  Swing time: %.2f m\n', radar.Ts);
+fprintf('-----------------\n');
 
                                                           
-%The number of chirps in one sequence. Its ideal to have 2^ value for the ease of running the FFT
+%The number of chirps in one sequence. Iradar.Ts ideal to have 2^ value for the ease of running the FFT
 %for Doppler Estimation. 
 Nd=128;                   % #of doppler cells OR #of sent periods % number of chirps
 
@@ -54,7 +69,7 @@ Nr=1024;                  %for length of time OR # of range cells
 
 % Timestamp for running the displacement scenario for every sample on each
 % chirp
-t=linspace(0,Nd*Ts,Nr*Nd); %total time for samples
+t=linspace(0,Nd*radar.Ts,Nr*Nd); %total time for samples
 
 
 %Creating the vectors for Tx, Rx and Mix based on the total samples input.
@@ -69,19 +84,18 @@ t_delta=zeros(1,length(t));
 
 %% Signal generation and Moving Target simulation
 % Running the radar scenario over the time. 
-
 for i=1:length(t)         
 
     %For each time stamp update the Range of the Target for constant velocity.
-    range = target_init_range + target_init_v*t(i)
+    range = target.init_range + target.init_v*t(i)
 
     %For each time sample we need update the transmitted and
     %received signal. 
     t_delta= 2*range / c;
     t_new  = t(i)-t_delta;
 
-    Tx(i) = cos( 2*pi*( radar_frequency_operational*t(i) + (0.5*chirp_slope*t(i)^2) ) );
-    Rx(i) = cos( 2*pi*( radar_frequency_operational*t_new + (0.5*chirp_slope*t_new^2) ) );
+    Tx(i) = cos( 2*pi*( radar.frequency_operational*t(i) + (0.5*radar.chirp_slope*t(i)^2) ) );
+    Rx(i) = cos( 2*pi*( radar.frequency_operational*t_new + (0.5*radar.chirp_slope*t_new^2) ) );
 
     %Now by mixing the Transmit and Receive generate the beat signal
     %This is done by element wise matrix multiplication of Transmit and
@@ -101,16 +115,17 @@ new_Mix = reshape(Mix,[Nr,Nd]);
 signal_fft = fft(new_Mix);
 
 % Take the absolute value of FFT output
+signal_fft = abs(signal_fft/max(max(signal_fft)));
+
 % Output of FFT is double sided signal, but we are interested in only one side of the spectrum.
 % Hence we throw out half of the samples.
-signal = signal_fft(1:L/2+1);   % Taking only half of output
+signal = signal_fft(1:length(t)/2+1);   % Taking only half of output
 
 % Also plotting the range
 figure ('Name','Range based on First FFT')
-f = L*(0:L/2)/L;
+f = length(t)*(0:length(t)/2)/length(t);
 plot(f,signal) 
 axis ([0 200 0 1]);
-
 
 
 %% RANGE DOPPLER RESPONSE
@@ -132,9 +147,12 @@ sig_fft2 = fft2(Mix,Nr,Nd);
 
 % Taking just one side of signal from Range dimension.
 sig_fft2 = sig_fft2(1:Nr/2,1:Nd);
-sig_fft2 = fftshift (sig_fft2);
+sig_fft2 = fftshift(sig_fft2);
 RDM = abs(sig_fft2);
 RDM = 10*log10(RDM) ;
+
+max_V = max(max(RDM));
+RDM = RDM/max_V;
 
 %use the surf function to plot the output of 2DFFT and to show axis in both
 %dimensions
@@ -147,8 +165,8 @@ figure,surf(doppler_axis,range_axis,RDM);
 %Slide Window through the complete Range Doppler Map
 
 %Select the number of Training Cells in both the dimensions.
-training_cells_chirps = 8;
-training_cells_samples = 6;
+training_cells_chirps = 10;
+training_cells_samples = 8;
 
 %Select the number of Guard Cells in both dimensions around the Cell under 
 %test (CUT) for accurate estimation
@@ -197,7 +215,7 @@ for i = chirps_width+1 : (Nr/2)-(chirps_width)
         
         % Calculate threshould from noise average then add the offset
         threshold_avg = pow2db(noise_level/(2*(samples_width+1)*2*(chirps_width+1)-(training_cells_chirps*guard_cells_samples)-1));
-        threshold_avg = threshold_avg + offset;
+        threshold_avg = threshold_avg + offset_threshold;
         CUT = RDM(i,j);
         
         if (CUT > threshold_avg)
@@ -218,14 +236,8 @@ end
 RDM(union(1:(chirps_width),end-(chirps_width-1):end),:) = 0;  % Rows
 RDM(:,union(1:(samples_width),end-(samples_width-1):end)) = 0;  % Columns
 
-
-
 % *%TODO* :
 %display the CFAR output using the Surf function like we did for Range
 %Doppler Response output.
-figure,surf(doppler_axis,range_axis,'replace this with output');
+figure,surf(doppler_axis,range_axis,RDM);
 colorbar;
-
-
- 
- 
