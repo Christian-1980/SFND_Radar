@@ -141,16 +141,87 @@ signal_fft = abs(signal_fft/max(max(signal_fft)));
 signal = signal_fft(1:length(t)/2+1);   % Taking only half of output
 ```
 
+![Range FFT](results/RangeFFT.png)
+
 ### 2D CFAR
 
 #### Implement the 2D CFAR process on the output of 2D FFT operation, i.e the Range Doppler Map
 The 2D CFAR processing should be able to suppress the noise and separate the target signal. The output should match the image shared in walkthrough.
 
-#### Create a CFAR README File
-	
-In a README file, write brief explanations for the following:
+- first reshape to number of chirps and doppler cells
+- use 2D FFT-function
+- then only use positive signals
+- use function RDM for the positives
 
-- Implementation steps for the 2D CFAR process.
-- Selection of Training, Guard cells and offset.
-- Steps taken to suppress the non-thresholded cells at the edges.
+```
+% Range Doppler Map Generation.
 
+% The output of the 2D FFT is an image that has reponse in the range and
+% doppler FFT bins. So, it is important to convert the axis from bin sizes
+% to range and doppler based on their Max values.
+
+Mix=reshape(Mix,[Nr,Nd]);
+
+% 2D FFT using the FFT size for both dimensions.
+sig_fft2 = fft2(Mix,Nr,Nd);
+
+% Taking just one side of signal from Range dimension.
+sig_fft2 = sig_fft2(1:Nr/2,1:Nd);
+sig_fft2 = fftshift(sig_fft2);
+RDM = abs(sig_fft2);
+RDM = 10*log10(RDM) ;
+
+```
+
+![Range Doppler Map](results/DopplerRangeMap.png)
+
+ - now let us use the CFAR method to eliminte noise by defining
+     - training cells
+     - guard cells
+     - and the threshold to get rid of noise
+ - create 2 additional matricies
+     - threshold_cfar
+     - signal_cfar
+   to hold results of the cfar calculation and to set the signal
+ - create helper values to keep the code clean
+     - chirps_width
+     - samples_width
+     - num_cells
+
+```
+% Getting the dimensions
+[m,n] = size(RDM);
+% Vector to hold threshold values 
+threshold_cfar = zeros(m,n);
+%Vector to hold final signal after thresholding
+signal_cfar = zeros(m,n);
+
+% helpers
+chirps_width = training_cells_chirps+guard_cells_chrips;
+samples_width = training_cells_samples+guard_cells_samples;
+
+% number of cells for averaging
+num_cells = (2*chirps_width + 1)*(2*samples_width + 1) - (2*guard_cells_chrips + 1)*(2*guard_cells_samples + 1);
+
+% loop for CUT
+for i =  (chirps_width + 1):( m - 2*chirps_width)
+    for j = (samples_width + 1):(n - 2*(samples_width))
+        % loop to calculate cfar
+        threshold_cfar(i,j) = sum(sum(db2pow(RDM(i-(chirps_width) : i+(chirps_width),j-(samples_width) : j+(samples_width))))); 
+        threshold_cfar(i,j) = threshold_cfar(i,j) - sum(sum(db2pow(RDM((i-guard_cells_chrips):(i+guard_cells_chrips),(j-guard_cells_samples):(j+guard_cells_samples)))));
+        
+        threshold_cfar(i,j) = threshold_cfar(i,j)/num_cells;
+        % calculate the threshold
+        threshold_cfar(i,j) = offset_threshold + pow2db(threshold_cfar(i,j));
+        
+        if RDM(i,j) > threshold_cfar(i,j)
+            signal_cfar(i,j) = 1;
+        else
+            signal_cfar(i,j) = 0;
+        end
+        
+    end
+end
+```
+
+![CFAR Map](results/CFARMap.png)
