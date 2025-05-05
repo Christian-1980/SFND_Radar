@@ -83,6 +83,7 @@ t_delta=zeros(1,length(t));
 
 
 %% Signal generation and Moving Target simulation
+
 % Running the radar scenario over the time. 
 for i=1:length(t)         
 
@@ -103,6 +104,7 @@ for i=1:length(t)
     Mix(i) = Tx(i).*Rx(i);
     
 end
+
 
 %% RANGE MEASUREMENT
 
@@ -129,10 +131,10 @@ axis ([0 200 0 1]);
 
 
 %% RANGE DOPPLER RESPONSE
+
 % The 2D FFT implementation is already provided here. This will run a 2DFFT
 % on the mixed signal (beat signal) output and generate a range doppler
 % map.You will implement CFAR on the generated RDM
-
 
 % Range Doppler Map Generation.
 
@@ -151,22 +153,26 @@ sig_fft2 = fftshift(sig_fft2);
 RDM = abs(sig_fft2);
 RDM = 10*log10(RDM) ;
 
-max_V = max(max(RDM));
-RDM = RDM/max_V;
-
 %use the surf function to plot the output of 2DFFT and to show axis in both
 %dimensions
 doppler_axis = linspace(-100,100,Nd);
 range_axis = linspace(-200,200,Nr/2)*((Nr/2)/400);
-figure,surf(doppler_axis,range_axis,RDM);
+
+% Plot the Range Doppler Map
+figure, surf(doppler_axis, range_axis, RDM);
+title('Range Doppler Map');
+xlabel('Doppler Velocity (m/s)');
+ylabel('Range (m)');
+zlabel('Amplitude (dB)');
+colorbar;
+
 
 %% CFAR implementation
-
 %Slide Window through the complete Range Doppler Map
 
 %Select the number of Training Cells in both the dimensions.
 training_cells_chirps = 10;
-training_cells_samples = 8;
+training_cells_samples = 10;
 
 %Select the number of Guard Cells in both dimensions around the Cell under 
 %test (CUT) for accurate estimation
@@ -174,7 +180,7 @@ guard_cells_chrips = 4;
 guard_cells_samples = 4;
 
 % offset the threshold by SNR value in dB
-offset_threshold = 1.4;
+offset_threshold = 4.5;
 
 %design a loop such that it slides the CUT across range doppler map by
 %giving margins at the edges for Training and Guard Cells.
@@ -189,55 +195,46 @@ offset_threshold = 1.4;
 
 % Use RDM[x,y] as the matrix from the output of 2D FFT for implementing
 % CFAR
-threshold_cfar = [];
-signal_cfar = [];
+
+% Getting the dimensions
+[m,n] = size(RDM);
+% Vector to hold threshold values 
+threshold_cfar = zeros(m,n);
+%Vector to hold final signal after thresholding
+signal_cfar = zeros(m,n);
 
 % helpers
 chirps_width = training_cells_chirps+guard_cells_chrips;
 samples_width = training_cells_samples+guard_cells_samples;
 
+% number of cells for averaging
+num_cells = (2*chirps_width + 1)*(2*samples_width + 1) - (2*guard_cells_chrips + 1)*(2*guard_cells_samples + 1);
 
-% Looping over the matrix results
-for i = chirps_width+1 : (Nr/2)-(chirps_width)
-    for j = samples_width+1 : Nd-(samples_width)
+% loop for CUT
+for i =  (chirps_width + 1):( m - 2*chirps_width)
+    for j = (samples_width + 1):(n - 2*(samples_width))
+        % loop to calculate cfar
+        threshold_cfar(i,j) = sum(sum(db2pow(RDM(i-(chirps_width) : i+(chirps_width),j-(samples_width) : j+(samples_width))))); 
+        threshold_cfar(i,j) = threshold_cfar(i,j) - sum(sum(db2pow(RDM((i-guard_cells_chrips):(i+guard_cells_chrips),(j-guard_cells_samples):(j+guard_cells_samples)))));
         
-        % init noise level
-        noise_level = zeros(1,1);
+        threshold_cfar(i,j) = threshold_cfar(i,j)/num_cells;
+        % calculate the threshold
+        threshold_cfar(i,j) = offset_threshold + pow2db(threshold_cfar(i,j));
         
-        % Calculate noise SUM in the area around CUT
-        for p = i-(chirps_width) : i+(chirps_width)
-            for q = j-(samples_width) : j+(samples_width)
-                if (abs(i-p) > guard_cells_chrips || abs(j-q) > guard_cells_samples)
-                    noise_level = noise_level + db2pow(RDM(p,q));
-                end
-            end
-        end
-        
-        % Calculate threshould from noise average then add the offset
-        threshold_avg = pow2db(noise_level/(2*(samples_width+1)*2*(chirps_width+1)-(training_cells_chirps*guard_cells_samples)-1));
-        threshold_avg = threshold_avg + offset_threshold;
-        CUT = RDM(i,j);
-        
-        if (CUT > threshold_avg)
-            RDM(i,j) = 1;
-            fprintf ("p= %d, q= %d, CUT= %f, threshold_avg= %f\n", p, q, CUT, threshold_avg);
+        if RDM(i,j) > threshold_cfar(i,j)
+            signal_cfar(i,j) = 1;
         else
-            RDM(i,j) = 0;
+            signal_cfar(i,j) = 0;
         end
         
     end
 end
 
-
-% The process above will generate a thresholded block, which is smaller 
-%than the Range Doppler Map as the CUT cannot be located at the edges of
-%matraining_cells_chirpsix. Hence,few cells will not be thresholded. To keep the map size same
-% set those values to 0.  
-RDM(union(1:(chirps_width),end-(chirps_width-1):end),:) = 0;  % Rows
-RDM(:,union(1:(samples_width),end-(samples_width-1):end)) = 0;  % Columns
-
-% *%TODO* :
 %display the CFAR output using the Surf function like we did for Range
 %Doppler Response output.
-figure,surf(doppler_axis,range_axis,RDM);
+figure,surf(doppler_axis,range_axis,signal_cfar);
+title('CFAR Output');
+xlabel('Doppler Velocity (m/s)');
+ylabel('Range (m)');
+zlabel('Detection');
 colorbar;
